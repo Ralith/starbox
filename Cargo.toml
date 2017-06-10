@@ -1,0 +1,12 @@
+[package]
+name = "starbox"
+version = "0.1.0"
+authors = ["Benjamin Saunders <ben.e.saunders@gmail.com>"]
+
+[dependencies]
+error-chain = "0.10"
+clap = "2.24"
+nalgebra = "0.11"
+openexr = { git = "https://github.com/Ralith/openexr-rs.git", branch = "envmap" }
+rand = "0.3"
+half = "1"
