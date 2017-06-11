@@ -10,10 +10,11 @@ error_chain! {}
 
 use std::fs::File;
 use std::path::Path;
+use std::f64;
 
 use clap::{Arg, App};
 use rand::{Rng, Rand};
-use rand::distributions::{IndependentSample, Normal};
+use rand::distributions::{IndependentSample, Normal, Exp};
 use rand::distributions::normal::StandardNormal;
 use half::f16;
 
@@ -31,9 +32,16 @@ fn run() -> Result<()> {
              .short("r")
              .help("Cubemap edge length")
              .takes_value(true)
-             .default_value("1024"))
+             .default_value("2048"))
+        .arg(Arg::with_name("number")
+             .short("n")
+             .help("Number of stars, in thousands")
+             .takes_value(true)
+             .default_value("500"))
         .get_matches();
     let res = args.value_of("resolution").unwrap().parse().chain_err(|| "failed to parse resolution")?;
+    let number: usize = args.value_of("number").unwrap().parse().chain_err(|| "failed to parse number of stars")?;
+    let number = 1000 * number;
     println!("uncompressed size: {} MiB", res * res * 6 * 2 * 2 / (1024 * 1024));
     let path = Path::new(args.value_of_os("FILE").unwrap());
     let mut out = File::create(path).chain_err(|| "failed to open output file")?;
@@ -48,19 +56,22 @@ fn run() -> Result<()> {
 
     let zero = f16::from_f32(0.0);
     let mut pixel_data: Vec<(f16, f16)> = vec![(zero, zero); (res * 6 * res) as usize];
-    const COUNT: usize = 40_000;
     let mut rng = rand::weak_rng();
     let galaxy = Galaxy::rand(&mut rng);
     let viewer = galaxy.star(&mut rng).position;
-    for _ in 0..COUNT {
+    for _ in 0..number {
         let star = galaxy.star(&mut rng);
-        let (face, pos) = project(res, star.position - viewer);
+        let vector = star.position - viewer;
+        let (face, pos) = project(res, vector);
         let out = &mut pixel_data[(pos.0 + res * (pos.1 + res * face as u32)) as usize];
         let old_irradiance: f32 = out.0.into();
         let old_temp: f32 = out.1.into();
-        *out = (f16::from_f32(old_irradiance + star.irradiance),
-                f16::from_f32(old_temp * old_irradiance + star.temperature * star.irradiance
-                              / (old_irradiance + star.irradiance)));
+        let irradiance = (star.intensity / na::norm(&vector).powi(2)).min(half::consts::MAX.into());
+        if old_irradiance + irradiance > 0.0 {
+            *out = (f16::from_f32(old_irradiance + irradiance),
+                    f16::from_f32((old_temp * old_irradiance + star.temperature * irradiance)
+                                  / (old_irradiance + irradiance)));
+        }
     }
 
     {
@@ -83,10 +94,33 @@ impl Galaxy {
         let pos = na::Point3::new(xz.ind_sample(rng) as f32, y.ind_sample(rng) as f32, xz.ind_sample(rng) as f32);
         let pos = self.rotation * pos;
 
+        //
+        // units below are wrt. sol
+        //
+
+        let mass = Exp::new(1.0).ind_sample(rng);
+
+        let radius = 0.43039846 * mass + 0.52963256; // TODO: Fudge
+
+        // Mass-luminosity relation
+        // Main-Sequence Effective Temperatures from a Revised Mass-Luminosity Relation Based on Accurate Properties
+        // Z. Eker, F. Soydugan, E. Soydugan, S. Bilir, E. Yaz Gokce, I. Steer, M. Tuysuz, T. Senyuz, O. Demircan (2015)
+        let luminosity = if mass <= 1.05 {
+            4.841 * mass.ln() - 0.026
+        } else if mass <= 2.40 {
+            4.328 * mass.ln() - 0.002
+        } else if mass <= 7.0 {
+            3.962 * mass.ln() + 0.120
+        } else {
+            2.726 * mass.ln() + 1.237
+        }.exp();
+
+        let temperature = 5777.0 * (luminosity / radius.powi(2)).powf(0.25);
+
         Star {
             position: pos,
-            irradiance: 1.0,
-            temperature: 1.0,
+            intensity: (luminosity / (4.0 * f64::consts::PI)) as f32,
+            temperature: temperature as f32,
         }
     }
 }
@@ -107,7 +141,8 @@ impl Rand for Galaxy {
 struct Star {
     position: na::Point3<f32>,
     temperature: f32,
-    irradiance: f32,
+    /// Radiant intensity
+    intensity: f32,
 }
 
 enum Face {
