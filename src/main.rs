@@ -124,13 +124,13 @@ impl Galaxy {
         // Main-Sequence Effective Temperatures from a Revised Mass-Luminosity Relation Based on Accurate Properties
         // Z. Eker, F. Soydugan, E. Soydugan, S. Bilir, E. Yaz Gokce, I. Steer, M. Tuysuz, T. Senyuz, O. Demircan (2015)
         let luminosity = if mass <= 1.05 {
-            4.841 * mass.ln() - 0.026
+            4.841132 * mass.ln() - 0.02625
         } else if mass <= 2.40 {
-            4.328 * mass.ln() - 0.002
+            4.32891 * mass.ln() - 0.00220
         } else if mass <= 7.0 {
-            3.962 * mass.ln() + 0.120
+            3.962203 * mass.ln() + 0.120112
         } else {
-            2.726 * mass.ln() + 1.237
+            2.726203 * mass.ln() + 1.237228
         }.exp();
 
         let temperature = 5777.0 * (luminosity / radius.powi(2)).powf(0.25);
