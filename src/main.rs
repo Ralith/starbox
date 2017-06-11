@@ -59,6 +59,7 @@ fn run() -> Result<()> {
     let mut rng = rand::weak_rng();
     let galaxy = Galaxy::rand(&mut rng);
     let viewer = galaxy.star(&mut rng).position;
+    let mut max = 0.0;
     for _ in 0..number {
         let star = galaxy.star(&mut rng);
         let vector = star.position - viewer;
@@ -70,15 +71,17 @@ fn run() -> Result<()> {
         const SOLAR_LUMINOSITY: f64 = 3.828e26;
         const GALAXY_RADIUS: f64 = 1e21;
         // Conversion from solar luminances per galaxy radius^2 to attowatts/m^2
-        const SCALING_FACTOR: f32 = (1e18 * (SOLAR_LUMINOSITY / (GALAXY_RADIUS * GALAXY_RADIUS))) as f32;
+        const SCALING_FACTOR: f32 = (1e15 * (SOLAR_LUMINOSITY / (GALAXY_RADIUS * GALAXY_RADIUS))) as f32;
 
         let irradiance = SCALING_FACTOR * star.intensity / na::norm(&vector).powi(2);
+        if irradiance > max { max = irradiance; }
         if old_irradiance + irradiance > 0.0 {
             *out = (f16::from_f32((old_irradiance + irradiance).min(half::consts::MAX.into())),
                     f16::from_f32((old_temp * old_irradiance + star.temperature * irradiance)
                                   / (old_irradiance + irradiance)));
         }
     }
+    println!("maximum irradiance: {} fW/m^2", max);
 
     {
         let mut fb = exr::FrameBuffer::new(res, 6*res);
