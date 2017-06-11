@@ -60,6 +60,9 @@ fn run() -> Result<()> {
     let galaxy = Galaxy::rand(&mut rng);
     let viewer = galaxy.star(&mut rng).position;
     let mut max = 0.0;
+    // Kahan summation variables
+    let mut sum = 0.0;
+    let mut c = 0.0;
     for _ in 0..number {
         let star = galaxy.star(&mut rng);
         let vector = star.position - viewer;
@@ -80,8 +83,14 @@ fn run() -> Result<()> {
                     f16::from_f32((old_temp * old_irradiance + star.temperature * irradiance)
                                   / (old_irradiance + irradiance)));
         }
+
+        // Kahan summation
+        let y = irradiance - c;
+        let t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
     }
-    println!("maximum irradiance: {} fW/m^2", max);
+    println!("brightest star's irradiance: {} fW/m^2\ntotal irradiance: {} fW/m^2", max, sum);
 
     {
         let mut fb = exr::FrameBuffer::new(res, 6*res);
