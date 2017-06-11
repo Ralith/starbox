@@ -72,10 +72,9 @@ fn run() -> Result<()> {
         // Conversion from solar luminances per galaxy radius^2 to attowatts/m^2
         const SCALING_FACTOR: f32 = (1e18 * (SOLAR_LUMINOSITY / (GALAXY_RADIUS * GALAXY_RADIUS))) as f32;
 
-        let irradiance = (SCALING_FACTOR * star.intensity / na::norm(&vector).powi(2)).min(half::consts::MAX.into());
-
+        let irradiance = SCALING_FACTOR * star.intensity / na::norm(&vector).powi(2);
         if old_irradiance + irradiance > 0.0 {
-            *out = (f16::from_f32(old_irradiance + irradiance),
+            *out = (f16::from_f32((old_irradiance + irradiance).min(half::consts::MAX.into())),
                     f16::from_f32((old_temp * old_irradiance + star.temperature * irradiance)
                                   / (old_irradiance + irradiance)));
         }
