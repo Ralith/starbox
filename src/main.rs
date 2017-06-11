@@ -66,7 +66,14 @@ fn run() -> Result<()> {
         let out = &mut pixel_data[(pos.0 + res * (pos.1 + res * face as u32)) as usize];
         let old_irradiance: f32 = out.0.into();
         let old_temp: f32 = out.1.into();
-        let irradiance = (star.intensity / na::norm(&vector).powi(2)).min(half::consts::MAX.into());
+
+        const SOLAR_LUMINOSITY: f64 = 3.828e26;
+        const GALAXY_RADIUS: f64 = 1e21;
+        // Conversion from solar luminances per galaxy radius^2 to attowatts/m^2
+        const SCALING_FACTOR: f32 = (1e18 * (SOLAR_LUMINOSITY / (GALAXY_RADIUS * GALAXY_RADIUS))) as f32;
+
+        let irradiance = (SCALING_FACTOR * star.intensity / na::norm(&vector).powi(2)).min(half::consts::MAX.into());
+
         if old_irradiance + irradiance > 0.0 {
             *out = (f16::from_f32(old_irradiance + irradiance),
                     f16::from_f32((old_temp * old_irradiance + star.temperature * irradiance)
@@ -89,8 +96,8 @@ struct Galaxy {
 
 impl Galaxy {
     fn star<R: Rng>(&self, rng: &mut R) -> Star {
-        let y = Normal::new(0.0, 1.0);
-        let xz = Normal::new(0.0, 4.0);
+        let y = Normal::new(0.0, 0.25);
+        let xz = Normal::new(0.0, 1.0);
         let pos = na::Point3::new(xz.ind_sample(rng) as f32, y.ind_sample(rng) as f32, xz.ind_sample(rng) as f32);
         let pos = self.rotation * pos;
 
