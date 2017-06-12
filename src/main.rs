@@ -67,7 +67,8 @@ fn run() -> Result<()> {
         let star = galaxy.star(&mut rng);
         let vector = star.position - viewer;
         let (face, pos) = project(res, vector);
-        let out = &mut pixel_data[(pos.0 + res * (pos.1 + res * face as u32)) as usize];
+        let index = address(res, face, pos);
+        let out = &mut pixel_data[index as usize];
         let old_irradiance: f32 = out.0.into();
         let old_temp: f32 = out.1.into();
 
@@ -163,6 +164,7 @@ struct Star {
     intensity: f32,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 enum Face {
     PX = 0,
     NX = 1,
@@ -172,39 +174,86 @@ enum Face {
     NZ = 5,
 }
 
-fn project(res: u32, n: na::Vector3<f32>) -> (Face, (u32, u32)) {
+fn project(res: u32, n: na::Vector3<f32>) -> (Face, na::Vector2<f32>) {
     let ax = n.x.abs();
     let ay = n.y.abs();
     let az = n.z.abs();
-    let face: Face;
-    let pos: (f32, f32);
+    let face;
+    let pos;
     if ax >= ay && ax >= az {
         if ax == 0.0 {
-            return (Face::PX, (0, 0));
-        }
-        pos = ((n.y / ax + 1.0) / 2.0 * (res - 1) as f32,
-               (n.z / ax + 1.0) / 2.0 * (res - 1) as f32);
-        face = if n.x > 0.0 {
-            Face::PX
+            face = Face::PX;
+            pos = na::zero();
         } else {
-            Face::NX
-        };
+            pos = na::Vector2::new((n.y / ax + 1.0) / 2.0 * (res - 1) as f32,
+                                   (n.z / ax + 1.0) / 2.0 * (res - 1) as f32);
+            face = if n.x > 0.0 {
+                Face::PX
+            } else {
+                Face::NX
+            };
+        }
     } else if ay >= az {
-        pos = ((n.x / ay + 1.0) / 2.0 * (res - 1) as f32,
-               (n.z / ay + 1.0) / 2.0 * (res - 1) as f32);
+        pos = na::Vector2::new((n.x / ay + 1.0) / 2.0 * (res - 1) as f32,
+                               (n.z / ay + 1.0) / 2.0 * (res - 1) as f32);
         face = if n.y > 0.0 {
             Face::PY
         } else {
             Face::NY
         };
     } else {
-        pos = ((n.x / az + 1.0) / 2.0 * (res - 1) as f32,
-               (n.y / az + 1.0) / 2.0 * (res - 1) as f32);
+        pos = na::Vector2::new((n.x / az + 1.0) / 2.0 * (res - 1) as f32,
+                               (n.y / az + 1.0) / 2.0 * (res - 1) as f32);
         face = if n.z > 0.0 {
             Face::PZ
         } else {
             Face::NZ
         };
     }
-    (face, (pos.0 as u32, pos.1 as u32))
+    (face, pos)
+}
+
+fn address(res: u32, face: Face, pos: na::Vector2<f32>) -> u32 {
+    let y_min = (face as u32 * res) as f32;
+    let y_max = y_min + (res - 1) as f32;
+    let x_max = (res - 1) as f32;
+    let x;
+    let y;
+    match face {
+        Face::PX => {
+            x = pos.y;
+            y = y_max - pos.x;
+        }
+        Face::NX => {
+            x = x_max - pos.y;
+            y = y_max - pos.x;
+        }
+        Face::PY => {
+            x = pos.x;
+            y = y_max - pos.y;
+        }
+        Face::NY => {
+            x = pos.x;
+            y = y_min + pos.y;
+        }
+        Face::PZ => {
+            x = x_max - pos.x;
+            y = y_max - pos.y;
+        }
+        Face::NZ => {
+            x = pos.x;
+            y = y_max - pos.y;
+        }
+    }
+    x as u32 + y as u32 * res
+}
+
+#[test]
+fn project_sanity() {
+    assert_eq!(project(128, na::Vector3::x()), (Face::PX, na::Vector2::new(63.5, 63.5)));
+    assert_eq!(project(128, na::Vector3::y()), (Face::PY, na::Vector2::new(63.5, 63.5)));
+    assert_eq!(project(128, na::Vector3::z()), (Face::PZ, na::Vector2::new(63.5, 63.5)));
+    assert_eq!(project(128, -na::Vector3::x()), (Face::NX, na::Vector2::new(63.5, 63.5)));
+    assert_eq!(project(128, -na::Vector3::y()), (Face::NY, na::Vector2::new(63.5, 63.5)));
+    assert_eq!(project(128, -na::Vector3::z()), (Face::NZ, na::Vector2::new(63.5, 63.5)));
 }

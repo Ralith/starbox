@@ -7,6 +7,6 @@ authors = ["Benjamin Saunders <ben.e.saunders@gmail.com>"]
 error-chain = "0.10"
 clap = "2.24"
 nalgebra = "0.11"
-openexr = { git = "https://github.com/Ralith/openexr-rs.git", branch = "envmap" }
+openexr = { git = "https://github.com/cessen/openexr-rs.git" }
 rand = "0.3"
 half = "1"
